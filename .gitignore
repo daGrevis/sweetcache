@@ -1,0 +1,10 @@
+*.py[co]
+/bin/
+/include/
+/lib/
+/man/
+__pycache__/
+pip-selfcheck.json
+requirements-dev.txt
+requirements.txt
+share/
