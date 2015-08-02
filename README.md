@@ -7,7 +7,7 @@ Lightweight, framework agnostic caching library with sweet API
 ## Usage
 
 ```python
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import sweetcache
 import sweetcache_redis
