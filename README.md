@@ -10,9 +10,10 @@ Lightweight, framework agnostic caching library with sweet API
 from datetime import timedelta
 
 import sweetcache
+import sweetcache_redis
 
 
-cache = sweetcache.Cache(sweetcache.RedisBackend)
+cache = sweetcache.Cache(sweetcache_redis.RedisBackend)
 
 
 cache.set("foo", 42)
