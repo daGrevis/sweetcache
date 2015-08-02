@@ -32,6 +32,14 @@ cache.set("foo", 42, expires=datetime(2015, 9, 28))
 cache.set("foo", 42, expires=60 * 5)
 
 
+try:
+    foo = cache.get("foo")
+except sweetcache.NotFoundError:
+    foo = None
+
+foo = cache.get("foo", None)
+
+
 @cache.it("charts.v2", expires=timedelta(hours=2))
 def get_charts():
     charts = calculate_charts()
