@@ -1,7 +1,12 @@
 from unittest import TestCase
-from mock import Mock, patch
+from mock import Mock, patch, ANY
+from datetime import datetime, timedelta
 
-from . import Cache, key_join, EmptyKeyError, NotFoundError
+from freezegun import freeze_time
+
+from . import (
+    Cache, to_timedelta, join_key, EmptyKeyError, NotFoundError, ToTimedeltaError
+)
 
 
 class MockCacheTestCase(TestCase):
@@ -9,6 +14,58 @@ class MockCacheTestCase(TestCase):
     def setUp(self):
         backend_class = Mock()
         self.cache = Cache(backend_class)
+
+
+class ToTimedeltaTests(TestCase):
+
+    def test_none_is_ignored(self):
+        self.assertEqual(to_timedelta(None), None)
+
+    def test_timedelta_is_ignored(self):
+        self.assertEqual(to_timedelta(timedelta()), timedelta())
+
+    def test_int_to_timedelta(self):
+        self.assertEqual(to_timedelta(4 * 60 + 20), timedelta(minutes=4, seconds=20))
+
+    @freeze_time("2015-08-02 16")
+    def test_datetime_to_timedelta(self):
+        self.assertEqual(to_timedelta(datetime(2015, 8, 2, 16, 20)), timedelta(minutes=20))
+
+    def test_exception_on_invalid(self):
+        with self.assertRaises(ToTimedeltaError):
+            to_timedelta("a")
+
+
+class JoinKeyTests(TestCase):
+
+    def test_with_empty_string(self):
+        with self.assertRaises(EmptyKeyError):
+            join_key("")
+
+    def test_with_empty_iterable(self):
+        with self.assertRaises(EmptyKeyError):
+            join_key([])
+
+    def test_semantically_empty(self):
+        with self.assertRaises(EmptyKeyError):
+            join_key(".")
+        with self.assertRaises(EmptyKeyError):
+            join_key([".", ".."])
+
+    def test_with_flat_key(self):
+        self.assertEqual(join_key(["foo"]), "foo")
+
+    def test_with_deep_key(self):
+        self.assertEqual(join_key(["foo.bar"]), "foo.bar")
+
+    def test_with_multiple_keys(self):
+        self.assertEqual(join_key(["foo", "bar"]), "foo.bar")
+
+    def test_flat_and_deep_keys_together(self):
+        self.assertEqual(join_key(["foo", "bar.baz"]), "foo.bar.baz")
+
+    def test_extra_separators_are_ignored(self):
+        self.assertEqual(join_key(["..foo...", ".bar...baz...."]), "foo.bar.baz")
 
 
 class CacheTests(TestCase):
@@ -34,70 +91,39 @@ class CacheTests(TestCase):
         backend_class.assert_called_once_with(**backend_kwargs)
 
 
-class SettingTests(TestCase):
+class CacheSetTests(TestCase):
 
     def test_set_calls_backend_set(self):
         cache = Cache(Mock())
 
         key = "foo"
         value = 42
-        cache.set(key, value)
+        expires = timedelta(minutes=5)
+        cache.set(key, value, expires=expires)
 
-        cache._backend.set.assert_called_once_with([key], value, None)
+        cache._backend.set.assert_called_once_with([key], value, expires)
 
-    @patch("sweetcache._unwrap_keys")
-    def test_set_calls_unwrap_keys(self, _unwrap_keys):
-        separator = "."
-        cache = Cache(Mock(), separator=separator)
+    @patch("sweetcache.to_key_parts")
+    def test_set_calls_to_key_parts(self, to_key_parts):
+        cache = Cache(Mock())
 
         key = "foo"
-        value = 42
-        cache.set(key, value)
+        cache.set(key, ANY)
 
-        _unwrap_keys.assert_called_once_with(key, separator)
+        to_key_parts.assert_called_once_with(key)
 
+    @patch("sweetcache.to_timedelta")
+    @patch("sweetcache.to_key_parts")
+    def test_set_calls_to_timedelta(self, _, to_timedelta):
+        cache = Cache(Mock())
 
-class JoiningKeyTests(TestCase):
+        expires = timedelta(minutes=5)
+        cache.set(ANY, ANY, expires=expires)
 
-    def test_with_empty_string(self):
-        with self.assertRaises(EmptyKeyError):
-            key_join("")
-
-    def test_with_empty_iterable(self):
-        with self.assertRaises(EmptyKeyError):
-            key_join([])
-
-    def test_semantically_empty(self):
-        with self.assertRaises(EmptyKeyError):
-            key_join(".")
-        with self.assertRaises(EmptyKeyError):
-            key_join([".", ".."])
-
-    def test_with_flat_key(self):
-        self.assertEqual(key_join(["foo"]), "foo")
-
-    def test_with_deep_key(self):
-        self.assertEqual(key_join(["foo.bar"]), "foo.bar")
-
-    def test_with_multiple_keys(self):
-        self.assertEqual(key_join(["foo", "bar"]), "foo.bar")
-
-    def test_flat_and_deep_keys_together(self):
-        self.assertEqual(key_join(["foo", "bar.baz"]), "foo.bar.baz")
-
-    def test_extra_separators_are_ignored(self):
-        self.assertEqual(key_join(["..foo...", "..bar...baz.."]), "foo.bar.baz")
-        # Real use-case could look like:
-        #     cache.set(["users.v2", user.id], user)
-
-    def test_with_different_separator(self):
-        self.assertEqual(
-            key_join(["foo-bar", "-baz"], separator="-"),
-            "foo-bar-baz",
-        )
+        to_timedelta.assert_called_once_with(expires)
 
 
-class GettingTests(TestCase):
+class CacheGetTests(TestCase):
 
     def test_get_calls_backend_get(self):
         cache = Cache(Mock())
@@ -107,15 +133,14 @@ class GettingTests(TestCase):
 
         cache._backend.get.assert_called_once_with([key])
 
-    @patch("sweetcache._unwrap_keys")
-    def test_get_calls_unwrap_keys(self, _unwrap_keys):
-        separator = "."
-        cache = Cache(Mock(), separator=separator)
+    @patch("sweetcache.to_key_parts")
+    def test_get_calls_to_key_parts(self, to_key_parts):
+        cache = Cache(Mock())
 
         key = "foo"
         cache.get(key)
 
-        _unwrap_keys.assert_called_once_with(key, separator)
+        to_key_parts.assert_called_once_with(key)
 
     def test_not_found_raises_exception(self):
         backend_class = Mock()
@@ -132,3 +157,36 @@ class GettingTests(TestCase):
 
         self.assertEqual(cache.get("foo", None), None)
         self.assertEqual(cache.get("foo", 42), 42)
+
+
+class CacheItTests(TestCase):
+
+    def test_it_calls_get(self):
+        key = "foo"
+        value = 42
+
+        cache = Cache(Mock())
+        cache.get = Mock(return_value=value)
+
+        fn = cache.it(key)(Mock())
+        return_value = fn()
+
+        cache.get.assert_called_once_with(key)
+        self.assertEqual(return_value, value)
+
+    def test_it_calls_set(self):
+        key = "foo"
+        value = 42
+        expires = timedelta(minutes=5)
+
+        cache = Cache(Mock())
+        cache.get = Mock(side_effect=NotFoundError())
+        cache.set = Mock()
+
+        setter = Mock(return_value=value)
+
+        fn = cache.it(key, expires)(setter)
+        return_value = fn()
+
+        cache.set.assert_called_once_with(key, value, expires)
+        self.assertEqual(return_value, value)

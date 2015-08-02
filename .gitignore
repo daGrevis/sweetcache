@@ -1,10 +1,10 @@
 *.py[co]
+/.coverage
 /bin/
+/cover/
 /include/
 /lib/
 /man/
+/pip-selfcheck.json
+/share/
 __pycache__/
-pip-selfcheck.json
-requirements-dev.txt
-requirements.txt
-share/

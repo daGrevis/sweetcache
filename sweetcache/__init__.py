@@ -1,5 +1,8 @@
-from redis import Redis
 import pickle
+import functools
+from datetime import datetime, timedelta
+
+from redis import Redis
 
 
 SEPARATOR = "."
@@ -18,6 +21,23 @@ class EmptyKeyError(SweetcacheException):
 class NotFoundError(SweetcacheException):
     
     pass
+
+
+class ToTimedeltaError(SweetcacheException):
+
+    pass
+
+
+class DummyBackend(object):
+
+    def __init__(self, **kwargs):
+        pass
+
+    def set(self, key, value, expires):
+        pass
+
+    def get(self, key):
+        pass
 
 
 class RedisBackend(object):
@@ -61,17 +81,15 @@ class RedisBackend(object):
         return value
 
 
-def _unwrap_keys(key_or_key_parts, separator=None):
-    assert separator is not None
-
-    if isinstance(key_or_key_parts, str):
+def to_key_parts(key_or_key_parts):
+    if type(key_or_key_parts) is str:
         key_parts = [key_or_key_parts]
     else:
         key_parts = key_or_key_parts
 
     keys = []
     for key_part in key_parts:
-        keys.extend([x.strip(separator) for x in key_part.split(separator) if x])
+        keys.extend([x.strip(SEPARATOR) for x in key_part.split(SEPARATOR) if x])
 
     if not keys:
         raise EmptyKeyError()
@@ -79,26 +97,43 @@ def _unwrap_keys(key_or_key_parts, separator=None):
     return keys
 
 
-def key_join(key_or_key_parts, separator=SEPARATOR):
-    return separator.join(
-        _unwrap_keys(key_or_key_parts, separator),
+def to_timedelta(x):
+    if x is None:
+        return x
+
+    x_type = type(x)
+
+    if x_type is timedelta:
+        return x
+
+    if x_type is int:
+        return timedelta(seconds=x)
+
+    if x_type is datetime:
+        return x - datetime.now()
+
+    raise ToTimedeltaError()
+
+
+def join_key(key_or_key_parts):
+    return SEPARATOR.join(
+        to_key_parts(key_or_key_parts),
     )
 
 
 class Cache(object):
 
-    def __init__(self, backend_class, backend_kwargs=None, separator=SEPARATOR):
+    def __init__(self, backend_class, backend_kwargs=None):
         self.backend_class = backend_class
         self.backend_kwargs = backend_kwargs or {}
-        self.separator = separator
 
         self._backend = self.backend_class(**self.backend_kwargs)
 
     def set(self, key_or_key_parts, value, expires=None):
         self._backend.set(
-            _unwrap_keys(key_or_key_parts, self.separator),
+            to_key_parts(key_or_key_parts),
             value,
-            expires,
+            to_timedelta(expires),
         )
 
     def get(self, *args):
@@ -109,7 +144,7 @@ class Cache(object):
             key_or_key_parts = args[0]
             has_default = False
 
-        key_parts = _unwrap_keys(key_or_key_parts, self.separator)
+        key_parts = to_key_parts(key_or_key_parts)
 
         try:
             return self._backend.get(key_parts)
@@ -118,3 +153,21 @@ class Cache(object):
                 return default
 
             raise
+
+    def it(self, key, expires=None):
+        def deco(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                try:
+                    return self.get(key)
+                except NotFoundError:
+                    pass
+
+                value = fn(*args, **kwargs)
+                self.set(key, value, expires)
+
+                return value
+
+            return wrapper
+
+        return deco
