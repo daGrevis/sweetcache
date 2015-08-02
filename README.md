@@ -36,3 +36,15 @@ def get_charts():
     charts = calculate_charts()
     return charts
 ~~~
+
+## Running Tests
+
+~~~
+nosetests -s sweetcache
+~~~
+
+### With Coverage
+
+~~~
+nosetests -s sweetcache --with-coverage --cover-html --cover-package sweetcache
+~~~
