@@ -28,18 +28,6 @@ class ToTimedeltaError(SweetcacheException):
     pass
 
 
-class DummyBackend(object):
-
-    def __init__(self, **kwargs):
-        pass
-
-    def set(self, key, value, expires):
-        pass
-
-    def get(self, key):
-        pass
-
-
 class RedisBackend(object):
 
     def __init__(self, **kwargs):

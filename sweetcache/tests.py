@@ -4,16 +4,7 @@ from datetime import datetime, timedelta
 
 from freezegun import freeze_time
 
-from . import (
-    Cache, to_timedelta, join_key, EmptyKeyError, NotFoundError, ToTimedeltaError
-)
-
-
-class MockCacheTestCase(TestCase):
-
-    def setUp(self):
-        backend_class = Mock()
-        self.cache = Cache(backend_class)
+from . import  Cache, to_timedelta, join_key, EmptyKeyError, NotFoundError, ToTimedeltaError
 
 
 class ToTimedeltaTests(TestCase):
