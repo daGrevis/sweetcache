@@ -6,7 +6,7 @@ Lightweight, framework agnostic caching library with sweet API
 
 ## Usage
 
-~~~
+```python
 from datetime import timedelta
 
 import sweetcache
@@ -35,7 +35,7 @@ cache.set("foo", 42, expires=60 * 5)
 def get_charts():
     charts = calculate_charts()
     return charts
-~~~
+```
 
 ## Running Tests
 
