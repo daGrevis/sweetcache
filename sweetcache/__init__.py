@@ -76,6 +76,9 @@ class Cache(object):
     def __str__(self):
         return "SweetCache({})".format(self.backend_class.__name__)
 
+    def is_available(self):
+        return self._backend.is_available()
+
     def set(self, key_or_key_parts, value, expires=None):
         self._backend.set(
             to_key_parts(key_or_key_parts),
