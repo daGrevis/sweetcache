@@ -81,6 +81,12 @@ class CacheTests(TestCase):
         self.assertEqual(cache.backend_kwargs, backend_kwargs)
         backend_class.assert_called_once_with(**backend_kwargs)
 
+    def test_cache_to_str_is_pretty(self):
+        backend_class = Mock(__name__="DummyBackend")
+        cache = Cache(backend_class)
+
+        self.assertEqual(str(cache), "SweetCache(DummyBackend)")
+
 
 class CacheSetTests(TestCase):
 
