@@ -65,6 +65,30 @@ def join_key(key_or_key_parts):
     )
 
 
+class BaseBackend(object):
+
+    def is_available(self):
+        raise NotImplementedError()
+
+    def set(self, key, value, expires):
+        raise NotImplementedError()
+
+    def get(self, key):
+        raise NotImplementedError()
+
+
+class DummyBackend(BaseBackend):
+
+    def is_available(self):
+        return True
+
+    def set(self, key, value, expires):
+        pass
+
+    def get(self, key):
+        pass
+
+
 class Cache(object):
 
     def __init__(self, backend_class, backend_kwargs=None):
