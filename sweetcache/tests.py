@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from freezegun import freeze_time
 
-from . import  Cache, to_timedelta, join_key, EmptyKeyError, NotFoundError, ToTimedeltaError
+from . import  Cache, to_key_parts, to_timedelta, EmptyKeyError, NotFoundError, ToTimedeltaError
 
 
 class ToTimedeltaTests(TestCase):
@@ -27,36 +27,65 @@ class ToTimedeltaTests(TestCase):
             to_timedelta("a")
 
 
-class JoinKeyTests(TestCase):
+class ToKeyPartsTests(TestCase):
 
-    def test_with_empty_string(self):
-        with self.assertRaises(EmptyKeyError):
-            join_key("")
+    def test_empty(self):
+        empty_keys = (
+            "",
+            ".",
+            [],
+            ["."],
+        )
 
-    def test_with_empty_iterable(self):
-        with self.assertRaises(EmptyKeyError):
-            join_key([])
+        for key in empty_keys:
+            with self.assertRaises(EmptyKeyError):
+                to_key_parts(key)
 
-    def test_semantically_empty(self):
-        with self.assertRaises(EmptyKeyError):
-            join_key(".")
-        with self.assertRaises(EmptyKeyError):
-            join_key([".", ".."])
+    def test_single_part(self):
+        self.assertEqual(
+            to_key_parts("foo"),
+            ["foo"],
+        )
 
-    def test_with_flat_key(self):
-        self.assertEqual(join_key(["foo"]), "foo")
+    def test_many_parts(self):
+        self.assertEqual(
+            to_key_parts("foo.bar"),
+            ["foo", "bar"],
+        )
 
-    def test_with_deep_key(self):
-        self.assertEqual(join_key(["foo.bar"]), "foo.bar")
+    def test_non_str(self):
+        self.assertEqual(
+            to_key_parts(42),
+            ["42"],
+        )
 
-    def test_with_multiple_keys(self):
-        self.assertEqual(join_key(["foo", "bar"]), "foo.bar")
+    def test_coll_with_single_part(self):
+        self.assertEqual(
+            to_key_parts(["foo"]),
+            ["foo"],
+        )
 
-    def test_flat_and_deep_keys_together(self):
-        self.assertEqual(join_key(["foo", "bar.baz"]), "foo.bar.baz")
+    def test_coll_with_many_parts(self):
+        self.assertEqual(
+            to_key_parts(["foo", "bar"]),
+            ["foo", "bar"],
+        )
 
-    def test_extra_separators_are_ignored(self):
-        self.assertEqual(join_key(["..foo...", ".bar...baz...."]), "foo.bar.baz")
+    def test_coll_with_non_str(self):
+        self.assertEqual(
+            to_key_parts(["foo", 42]),
+            ["foo", "42"],
+        )
+
+    def test_coll_with_separators(self):
+        self.assertEqual(
+            to_key_parts(["foo", "bar.baz"]),
+            ["foo", "bar", "baz"],
+        )
+        self.assertEqual(
+            to_key_parts([".foo.", ".bar.baz."]),
+            ["foo", "bar", "baz"],
+        )
 
 
 class CacheTests(TestCase):

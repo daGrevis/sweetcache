@@ -25,15 +25,31 @@ class ToTimedeltaError(SweetcacheException):
     pass
 
 
-def to_key_parts(key_or_key_parts):
-    if type(key_or_key_parts) is str:
-        key_parts = [key_or_key_parts]
+def to_key_parts(cache_key):
+    """
+    Normalizes so called **cache key** to **key parts**:
+
+        key_parts = ["foo", "bar"]
+
+    Cache keys can be in many different formats:
+
+        cache_keys = (
+            "foo",
+            "foo.bar",
+            ["foo"],
+            ["foo", "bar"],
+            ["foo.bar", "baz"],
+        )
+    """
+
+    if type(cache_key) in (list, tuple):
+        key_parts = cache_key
     else:
-        key_parts = key_or_key_parts
+        key_parts = [cache_key]
 
     keys = []
     for key_part in key_parts:
-        keys.extend([x.strip(SEPARATOR) for x in key_part.split(SEPARATOR) if x])
+        keys.extend([x.strip(SEPARATOR) for x in str(key_part).split(SEPARATOR) if x])
 
     if not keys:
         raise EmptyKeyError()
@@ -57,12 +73,6 @@ def to_timedelta(x):
         return x - datetime.now()
 
     raise ToTimedeltaError()
-
-
-def join_key(key_or_key_parts):
-    return SEPARATOR.join(
-        to_key_parts(key_or_key_parts),
-    )
 
 
 class BaseBackend(object):
@@ -103,22 +113,22 @@ class Cache(object):
     def is_available(self):
         return self._backend.is_available()
 
-    def set(self, key_or_key_parts, value, expires=None):
+    def set(self, cache_key, value, expires=None):
         self._backend.set(
-            to_key_parts(key_or_key_parts),
+            to_key_parts(cache_key),
             value,
             to_timedelta(expires),
         )
 
     def get(self, *args):
         try:
-            key_or_key_parts, default = args
+            cache_key, default = args
             has_default = True
         except ValueError:
-            key_or_key_parts = args[0]
+            cache_key = args[0]
             has_default = False
 
-        key_parts = to_key_parts(key_or_key_parts)
+        key_parts = to_key_parts(cache_key)
 
         try:
             return self._backend.get(key_parts)
